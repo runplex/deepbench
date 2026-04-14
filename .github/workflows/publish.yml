@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  verify:
+    name: Verify tag branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check tag is on main
+        run: |
+          ON_MAIN=$(git merge-base --is-ancestor ${{ github.sha }} origin/main && echo true || echo false)
+          if [ "$ON_MAIN" != "true" ]; then
+            echo "::error::Tags must be on main branch"
+            exit 1
+          fi
+
+  test:
+    name: Test
+    needs: [verify]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+
+  publish-npm:
+    name: Publish to npm
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: npm version ${{ github.ref_name }} --no-git-tag-version --allow-same-version
+      - run: npm publish --provenance --access public
+
+  publish-docker:
+    name: Publish Docker image
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  undraft-release:
+    name: Publish GitHub Release
+    needs: [publish-npm, publish-docker]
+    if: always() && needs.publish-npm.result == 'success' && needs.publish-docker.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Undraft release
+        run: gh release edit ${{ github.ref_name }} --draft=false --repo ${{ github.repository }} 2>/dev/null || echo "No draft release found for ${{ github.ref_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

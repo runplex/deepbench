@@ -2,6 +2,11 @@
   "name": "deepbench",
   "version": "0.1.0",
   "description": "Deep tools for any AI agent. Read, write, bash, glob, grep.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/runplex/deepbench.git"
+  },
+  "homepage": "https://github.com/runplex/deepbench",
   "type": "module",
   "exports": {
     ".": {

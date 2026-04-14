@@ -370,8 +370,8 @@ Options:
   console.log(`[deepbench] Server listening on ws://0.0.0.0:${port}`);
 }
 
-// Run CLI if executed directly
-const isDirectRun = process.argv[1]?.includes("ws-server");
+// Run CLI if executed directly (via node, npx, or bin symlink)
+const isDirectRun = process.argv[1]?.includes("ws-server") || process.argv[1]?.includes("deepbench-server");
 if (isDirectRun) {
   main().catch((err) => {
     console.error("deepbench-server fatal:", err);

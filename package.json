@@ -11,6 +11,14 @@
     "./mcp": {
       "types": "./dist/mcp/server.d.ts",
       "import": "./dist/mcp/server.js"
+    },
+    "./server": {
+      "types": "./dist/server/ws-server.d.ts",
+      "import": "./dist/server/ws-server.js"
+    },
+    "./spawn": {
+      "types": "./dist/client/spawn.d.ts",
+      "import": "./dist/client/spawn.js"
     }
   },
   "main": "./dist/index.js",
@@ -20,7 +28,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "mcp": "tsx src/mcp/server.ts"
+    "mcp": "tsx src/mcp/server.ts",
+    "server": "tsx src/server/ws-server.ts"
   },
   "keywords": [
     "ai",
@@ -46,16 +55,26 @@
   },
   "optionalDependencies": {
     "@archildata/client": "^0.8.7",
-    "@archildata/just-bash": "^0.8.7"
+    "@archildata/just-bash": "^0.8.7",
+    "ws": "^8.20.0",
+    "microsandbox": "^0.3.12"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "1",
     "@types/node": "^25.6.0",
     "ai": "4",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "@types/ws": "^8.18.1"
   },
   "bin": {
-    "deepbench-mcp": "./dist/mcp/server.js"
+    "deepbench-mcp": "./dist/mcp/server.js",
+    "deepbench-server": "./dist/server/ws-server.js"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "microsandbox",
+      "esbuild"
+    ]
   }
 }

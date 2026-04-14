@@ -29,7 +29,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "mcp": "tsx src/mcp/server.ts",
-    "server": "tsx src/server/ws-server.ts"
+    "server": "tsx src/server/ws-server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "demo": "tsx examples/basic.ts",
+    "demo:data": "tsx examples/data-analysis.ts",
+    "demo:review": "tsx examples/code-review.ts",
+    "demo:persistent": "tsx examples/persistent-workspace.ts",
+    "demo:remote": "tsx examples/remote-tools.ts",
+    "demo:remote-archil": "tsx examples/remote-archil.ts"
   },
   "keywords": [
     "ai",
@@ -65,7 +73,9 @@
     "ai": "4",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "@types/ws": "^8.18.1"
+    "@types/ws": "^8.18.1",
+    "vitest": "^4.1.4",
+    "dotenv": "^17.4.1"
   },
   "bin": {
     "deepbench-mcp": "./dist/mcp/server.js",

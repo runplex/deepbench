@@ -1,0 +1,52 @@
+{
+  "name": "deepbench",
+  "version": "0.1.0",
+  "description": "Deep tools for any AI agent. Read, write, bash, glob, grep.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "tools",
+    "workspace",
+    "bash"
+  ],
+  "author": "Vikas Mishra",
+  "license": "MIT",
+  "dependencies": {
+    "just-bash": "^2.14.0",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "ai": ">=4"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@archildata/client": "^0.8.7",
+    "@archildata/just-bash": "^0.8.7"
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "1",
+    "@types/node": "^25.6.0",
+    "ai": "4",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

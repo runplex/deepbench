@@ -1,23 +1,20 @@
 # deepbench
 
-Give any AI agent a workspace. Five tools, one line of code.
-
-Most AI agents are shallow — they call a tool, get one result, respond. deepbench makes them deep. Your agent can explore files, write scripts, run Python, search codebases, and produce artifacts. Like Claude Code, but in your own agent, with your own prompts, on any data.
+5 workspace tools for AI agents — read, write, bash, glob, grep. Pluggable execution backends, persistent cloud storage, multi-tenant isolation. Available as an SDK, MCP server, or self-hosted WebSocket server.
 
 ```typescript
 import { createTools, JustBashProvider } from "deepbench";
 
 const tools = createTools(new JustBashProvider({ dir: "./my-project" }));
-// Your agent can now read, write, bash, glob, grep
 ```
 
-## Why deepbench?
+## What makes deepbench different
 
-**The problem:** Function-calling agents today are one-shot. They call an API, get a result, done. To make an agent that can actually *work* — explore a codebase, analyze data, write reports — you need sandboxes, containers, VMs, infrastructure.
-
-**The solution:** deepbench gives your agent 5 workspace tools that run in-process. No containers. No VMs. No infrastructure. 100+ concurrent sessions per container. Works anywhere Node.js runs.
-
-**Not a sandbox for coding agents.** E2B, Daytona, and Modal are sandboxes for agents that need `npm test` or `gcc`. deepbench is a workspace for agents that need to *think* — data analysis, code review, research, ops automation, multi-agent coordination. Different product, different market.
+- **MCP server** — expose workspace tools via MCP protocol. Any agent that speaks MCP can connect.
+- **Multi-tenant workspaces** — server validates client requests against a policy, injects credentials, scopes each session to a subdirectory. No token on the wire.
+- **Persistent cloud storage** — Archil integration with subdirectory scoping. Files survive across sessions. One disk, many tenants.
+- **Self-hosted** — WebSocket server with `startServer()` API. Docker image with KVM auto-detection. No vendor lock-in.
+- **In-process execution** — JustBash runs 70+ commands in-process via TypeScript. Zero boot time, 100+ concurrent sessions per container, runs anywhere Node.js runs.
 
 ## Install
 
@@ -25,58 +22,93 @@ const tools = createTools(new JustBashProvider({ dir: "./my-project" }));
 npm install deepbench
 ```
 
-## Quick Start
+## MCP Server
 
-### SDK — build your own agent
+Expose workspace tools via MCP protocol. Your agent connects as an MCP client and gets all 5 tools.
+
+### stdio
+
+```bash
+npx deepbench-mcp --dir ./my-project
+```
+
+### HTTP (remote / Docker)
+
+```bash
+npx deepbench-mcp --dir ./my-project --http --port 3001
+```
+
+### With Archil persistent storage
+
+```bash
+npx deepbench-mcp --archil-disk org/workspace --archil-token adt_...
+```
+
+## SDK
+
+`createTools()` returns 5 tools compatible with Vercel AI SDK:
 
 ```typescript
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { createTools, JustBashProvider } from "deepbench";
 
-const provider = new JustBashProvider({ dir: "./my-project" });
-const tools = createTools(provider);
+const tools = createTools(new JustBashProvider({ dir: "./my-project" }));
 
 const result = await generateText({
   model: anthropic("claude-sonnet-4-6"),
   tools,
   maxSteps: 15,
-  prompt: "Review this project for bugs. Explore the code, read key files, and report issues.",
+  prompt: "Review this project for bugs.",
 });
-
-console.log(result.text);
-await provider.dispose();
 ```
 
-### MCP — add workspace tools to any AI editor
+The tool handlers (`handleRead`, `handleWrite`, `handleBash`, `handleGlob`, `handleGrep`) are also exported individually for use with any framework.
 
-Add to `.mcp.json` — Claude Code, Cursor, and Windsurf instantly get 5 workspace tools:
+## Multi-tenant Server
 
-```json
-{
-  "mcpServers": {
-    "workspace": {
-      "command": "npx",
-      "args": ["deepbench-mcp", "--dir", "./my-project"]
-    }
-  }
-}
+One server, many clients, each with their own isolated workspace. Clients request a workspace — server validates against a policy and injects credentials:
+
+```typescript
+import { startServer } from "deepbench/server";
+
+const stop = await startServer({
+  port: 3000,
+  policy: {
+    allowSources: ["archil"],
+    resolveArchilConfig: async (diskName, region, subdirectory) => ({
+      diskName,
+      authToken: process.env.ARCHIL_TOKEN!,
+      subdirectory,
+    }),
+  },
+});
 ```
 
-### Docker — self-host for remote agents
-
-```bash
-docker run -v ./my-project:/workspace -p 3000:3000 deepbench
-```
-
-Clients connect with the SDK:
+Client connects with just a disk name — no credentials needed:
 
 ```typescript
 import { createTools, connectSandbox } from "deepbench";
 
-const provider = await connectSandbox("ws://your-server:3000");
+const provider = await connectSandbox("ws://your-server:3000", {
+  archil: { diskName: "org/disk", subdirectory: `/tenants/${tenantId}` },
+});
 const tools = createTools(provider);
 ```
+
+Static workspace (no policy, all clients share one workspace):
+
+```bash
+npx deepbench-server --dir ./my-project
+```
+
+## Docker
+
+```bash
+docker run -v ./my-project:/workspace -p 3000:3000 ghcr.io/runplex/deepbench
+```
+
+Auto-detects KVM — uses microsandbox (real Linux microVMs) if available, JustBash otherwise.
 
 ## The 5 Tools
 
@@ -88,42 +120,26 @@ const tools = createTools(provider);
 | **glob** | Find files by pattern |
 | **grep** | Search file contents with regex |
 
-Works with Vercel AI SDK, OpenAI SDK, LangChain, or any function-calling framework. Also available as an MCP server.
-
 ## Filesystem Backends
 
-### Local directory — real files
+### Local directory
 
 ```typescript
 const provider = new JustBashProvider({ dir: "./my-project" });
 ```
 
-### In-memory — ephemeral workspace
+### In-memory
 
 ```typescript
 const provider = new JustBashProvider({
-  files: {
-    "/data/sales.csv": csvContent,
-    "/scripts/analyze.py": pythonScript,
-  },
+  files: { "/data/sales.csv": csvContent },
   python: true,
 });
 ```
 
-### Archil — persistent cloud storage
+### Archil (persistent cloud storage)
 
-Files survive across sessions. Agent picks up where the last one left off.
-
-```typescript
-const provider = new JustBashProvider({
-  archil: {
-    diskName: "org/workspace",
-    authToken: process.env.ARCHIL_TOKEN,
-  },
-});
-```
-
-Scope to a subdirectory for multi-tenant isolation — one disk, many users:
+Files survive across sessions. Subdirectory scoping for multi-tenant isolation:
 
 ```typescript
 const provider = new JustBashProvider({
@@ -133,7 +149,6 @@ const provider = new JustBashProvider({
     subdirectory: `/tenants/${tenantSlug}/users/${userId}`,
   },
 });
-// Agent only sees files in that subdirectory
 ```
 
 Requires `npm install @archildata/client @archildata/just-bash`. Free 10GB at [console.archil.com](https://console.archil.com).
@@ -142,7 +157,7 @@ Requires `npm install @archildata/client @archildata/just-bash`. Free 10GB at [c
 
 ### JustBash (default)
 
-In-process bash interpreter. Zero boot time. No containers, no VMs. Runs anywhere Node.js runs.
+In-process bash interpreter. Zero boot time. No containers, no VMs.
 
 - 70+ commands: grep, find, awk, jq, sed, sort, curl, python3
 - Python 3 via WASM (stdlib — json, csv, math, re, datetime, collections)
@@ -150,7 +165,7 @@ In-process bash interpreter. Zero boot time. No containers, no VMs. Runs anywher
 
 ### Microsandbox (upgrade)
 
-Real Linux microVM for when you need full execution — npm, node, gcc, pip. ~200ms boot.
+Real Linux microVM for full execution — npm, node, gcc, pip. ~200ms boot.
 
 ```typescript
 import { MicrosandboxProvider } from "deepbench";
@@ -163,90 +178,16 @@ const provider = new MicrosandboxProvider({
 
 Requires macOS Apple Silicon or Linux with KVM. `npm install microsandbox`.
 
-## Remote / Self-hosting
-
-Run the workspace server, connect from anywhere. Clients send workspace config, server validates and creates the provider.
-
-### Static workspace (simple)
-
-```typescript
-import { startServer } from "deepbench/server";
-
-// Server has a fixed workspace — all clients share it
-const stop = await startServer({ dir: "./my-project", port: 3000 });
-```
-
-### Dynamic workspace (multi-tenant)
-
-```typescript
-import { startServer } from "deepbench/server";
-
-// Server lets clients request Archil workspaces — resolves credentials
-const stop = await startServer({
-  port: 3000,
-  policy: {
-    allowSources: ["archil"],
-    resolveArchilConfig: async (diskName, region, subdirectory) => ({
-      diskName,
-      authToken: process.env.ARCHIL_TOKEN!,
-      subdirectory, // each client scoped to their own path
-    }),
-  },
-});
-```
-
-### Connect from client
-
-```typescript
-import { createTools, connectSandbox } from "deepbench";
-
-// Use server defaults
-const provider = await connectSandbox("ws://your-server:3000");
-
-// Or request a specific workspace (server must allow via policy)
-const provider = await connectSandbox("ws://your-server:3000", {
-  archil: {
-    diskName: "org/main-disk",
-    subdirectory: `/tenants/${tenantSlug}/users/${userId}`,
-  },
-});
-
-const tools = createTools(provider);
-```
-
-### CLI
-
-```bash
-npx deepbench-server --dir ./my-project
-npx deepbench-server --archil-disk org/workspace --archil-token adt_...
-```
-
-### Docker
-
-```bash
-docker run -v ./my-project:/workspace -p 3000:3000 deepbench
-```
-
-### MCP server
-
-```bash
-# stdio (local — Claude Code, Cursor, Windsurf)
-npx deepbench-mcp --dir ./my-project
-
-# HTTP (remote — Docker deployment)
-npx deepbench-mcp --dir ./my-project --http --port 3001
-```
-
 ## Architecture
 
 ```
-Agent (any SDK) → createTools(provider) → Provider Interface → Execution + Filesystem
-                                               │
-                       Execution:  JustBash (in-process) | Microsandbox (microVM) | Remote (WebSocket)
-                       Filesystem: Local dir | In-memory | Archil (cloud)
+Agent → createTools(provider) → Provider Interface → Execution + Filesystem
+                                       │
+              Execution:  JustBash (in-process) | Microsandbox (microVM) | Remote (WebSocket)
+              Filesystem: Local dir | In-memory | Archil (cloud)
 ```
 
-The `Provider` interface is 4 methods. Implement it to add any backend:
+The Provider interface — implement it to add any backend:
 
 ```typescript
 interface Provider {

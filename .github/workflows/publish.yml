@@ -60,7 +60,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: npm version ${{ github.ref_name }} --no-git-tag-version --allow-same-version
-      - run: npm publish --provenance --access public
+      - run: npm publish --access public
 
   publish-docker:
     name: Publish Docker image
